@@ -261,18 +261,32 @@ fun LineSlider(
     val interaction = remember { MutableInteractionSource() }
     val isDragging by interaction.collectIsDraggedAsState()
     val density = LocalDensity.current
+    
     val offsetHeight by animateFloatAsState(
         targetValue = with(density) { if (isDragging) 36.dp.toPx() else 0.dp.toPx() },
         animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioLowBouncy), label = "offsetAnimation"
     )
+
+    // LOCAL POSITION to fix teleporting and make dragging responsive
+    var localPos by remember { mutableFloatStateOf(value) }
+    LaunchedEffect(value) {
+        if (!isDragging) {
+            localPos = value
+        }
+    }
+
     val animatedValue by animateFloatAsState(
-        targetValue = value,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy), label = "animatedValue"
+        targetValue = localPos, 
+        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy), 
+        label = "animatedValue"
     )
 
     Slider(
-        value = value,
-        onValueChange = onValueChange,
+        value = localPos,
+        onValueChange = { 
+            localPos = it
+            onValueChange(it) 
+        },
         onValueChangeFinished = onValueChangeFinished,
         modifier = modifier,
         valueRange = valueRange,
@@ -280,18 +294,26 @@ fun LineSlider(
         interactionSource = interaction,
         thumb = {},
         track = { sliderState ->
-            val fraction by remember {
-                derivedStateOf { (animatedValue - sliderState.valueRange.start) / (sliderState.valueRange.endInclusive - sliderState.valueRange.start).coerceAtLeast(0.001f) }
-            }
+            val fraction = (animatedValue - sliderState.valueRange.start) / (sliderState.valueRange.endInclusive - sliderState.valueRange.start).coerceAtLeast(0.001f)
             var width by remember { mutableIntStateOf(0) }
+            
             Box(Modifier.clearAndSetSemantics {}.height(64.dp).fillMaxWidth().onSizeChanged { width = it.width }) {
-                Box(Modifier.zIndex(10f).align(Alignment.CenterStart).offset { IntOffset(lerp(-32.dp.toPx(), width.toFloat() - 32.dp.toPx(), fraction).roundToInt(), -offsetHeight.roundToInt()) }
-                    .size(64.dp).padding(10.dp).shadow(10.dp, CircleShape).background(MaterialTheme.colorScheme.primary, CircleShape), contentAlignment = Alignment.Center) {}
+                // Ball (Thumb)
+                Box(Modifier
+                    .zIndex(10f)
+                    .align(Alignment.CenterStart)
+                    .offset { IntOffset(lerp(-32.dp.toPx(), width.toFloat() - 32.dp.toPx(), fraction).roundToInt(), -offsetHeight.roundToInt()) }
+                    .size(64.dp)
+                    .padding(10.dp)
+                    .shadow(10.dp, CircleShape)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape), 
+                    contentAlignment = Alignment.Center) {}
                 
+                // Seekbar stick (Horizontal line)
                 val strokeColor = MaterialTheme.colorScheme.primary
                 val isLtr = LocalLayoutDirection.current == LayoutDirection.Ltr
                 Box(Modifier.align(Alignment.Center).fillMaxWidth().drawWithCache {
-                    onDrawBehind {
+                    onDrawBehind { 
                         scale(scaleY = 1f, scaleX = if (isLtr) 1f else -1f) {
                             drawSliderPath(fraction = fraction, offsetHeight = offsetHeight, color = strokeColor, steps = sliderState.steps)
                         }
@@ -336,8 +358,14 @@ fun DrawScope.drawSliderPath(fraction: Float, offsetHeight: Float, color: Color,
             else drawLine(color, pos + Offset(0f, 10f), pos + Offset(0f, -10f), if (pos.x < activeWidth) 4f else 2f)
         }
     }
-    clipRect(left = 0f, right = activeWidth) { drawTrimmedPath(trimmedPath, color) }
-    clipRect(left = activeWidth, right = size.width) { drawTrimmedPath(trimmedPath, color.copy(alpha = 0.24f)) }
+    
+    // Use primary color for the active part, and a dim version for the inactive part
+    clipRect(left = 0f, right = activeWidth) { 
+        drawTrimmedPath(trimmedPath, color) 
+    }
+    clipRect(left = activeWidth, right = size.width) { 
+        drawTrimmedPath(trimmedPath, color.copy(alpha = 0.24f)) 
+    }
 }
 
 fun DrawScope.drawTrimmedPath(path: Path, color: Color) {

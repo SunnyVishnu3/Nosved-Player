@@ -66,7 +66,6 @@ class AmbientModeEffect : GlEffect {
 
         override fun configure(inputWidth: Int, inputHeight: Int): Size {
             val inputAspectRatio = inputWidth.toFloat() / inputHeight
-            // One-Player structure: ensure output matches screen AR
             return if (effect.screenAspectRatio > inputAspectRatio) {
                 Size((inputHeight * effect.screenAspectRatio).toInt(), inputHeight)
             } else {
@@ -86,14 +85,13 @@ class AmbientModeEffect : GlEffect {
                 val vAr = vW / vH.coerceAtLeast(1f)
                 val sAr = sW / sH.coerceAtLeast(1f)
                 
-                // One-Player mapping: divide by scale (scale = video / output)
                 var sx = 1.0f
                 var sy = 1.0f
                 
                 if (sAr > vAr) {
-                    sx = vAr / sAr // video is narrower than output
+                    sx = vAr / sAr 
                 } else if (vAr > sAr) {
-                    sy = sAr / vAr // video is shorter than output
+                    sy = sAr / vAr
                 }
 
                 glProgram.setFloatUniform("uVideoScaleX", sx)
@@ -136,19 +134,16 @@ class AmbientModeEffect : GlEffect {
 
             void main() {
                 vec2 uv = vTexSamplingCoord;
-                // One-Player mapping logic
                 vec2 video_uv = (uv - 0.5) / vec2(uVideoScaleX, uVideoScaleY) + 0.5;
 
-                // If inside video bounds, draw the video
                 if (video_uv.x >= 0.0 && video_uv.x <= 1.0 && video_uv.y >= 0.0 && video_uv.y <= 1.0) {
                     gl_FragColor = texture2D(uTexSampler, video_uv);
                     return;
                 }
-                
-                // AMBIENT GLOW (Sample from edges for better bleeding effect)
+
                 vec2 center_uv = clamp(video_uv, 0.0, 1.0);
                 vec3 glow = vec3(0.0);
-                const int samples = 12;
+                const int samples = 16;
                 float base_seed = hash(vTexSamplingCoord);
                 
                 for (int i = 0; i < samples; i++) {
@@ -159,17 +154,14 @@ class AmbientModeEffect : GlEffect {
                 }
                 glow /= float(samples);
 
-                // Boost vibrancy and adjust brightness (YouTube style)
                 float luma = dot(glow, vec3(0.2126, 0.7152, 0.0722));
-                glow = mix(vec3(luma), glow, 1.5); // 50% saturation boost
+                glow = mix(vec3(luma), glow, 1.5); 
                 glow *= 0.4;
 
-                // Darken further from video edges for a smooth gradient
                 float dist = length(video_uv - center_uv);
                 float fade = exp(-dist * 2.8);
                 glow *= fade;
 
-                // Subtle noise to prevent banding
                 float noise = hash(vTexSamplingCoord * 10.0 + base_seed) * 0.01 - 0.005;
                 gl_FragColor = vec4(clamp(glow + noise, 0.0, 1.0), 1.0);
             }
