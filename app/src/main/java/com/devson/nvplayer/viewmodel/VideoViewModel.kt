@@ -21,8 +21,8 @@ import kotlinx.coroutines.launch
 
 //  Playback Settings Enums 
 
-/** Seek bar visual style: Material3 thumb slider or a flat thin line. */
-enum class SeekBarStyle { DEFAULT, FLAT }
+/** Seek bar visual style. */
+enum class SeekBarStyle { DEFAULT, FLAT, WAVY, THICK, CIRCULAR, SIMPLE, LINE }
 
 /** Control icon size preset applied to play/pause and seek icons. */
 enum class ControlIconSize { SMALL, MEDIUM, LARGE }
@@ -401,6 +401,10 @@ class VideoViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setScrubbingMode(enabled: Boolean) {
         playerManager?.setScrubbingMode(enabled)
+    }
+
+    fun updateSurfaceDimensions(width: Int, height: Int) {
+        playerManager?.updateSurfaceDimensions(width, height)
     }
 
     private fun debounceSeekByOffset(offsetMs: Long) {

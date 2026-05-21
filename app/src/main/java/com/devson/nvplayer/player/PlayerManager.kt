@@ -120,6 +120,8 @@ class PlayerManager(private val context: Context) {
     val playerError: StateFlow<String?> = _playerError.asStateFlow()
 
     private var videoFiltersEffect: VideoFiltersEffect? = null
+    private var ambientModeEffect: AmbientModeEffect? = null
+    private var isAmbientModeEnabled = false
 
     // --- Audio Tracks ---
     private val _audioTracks = MutableStateFlow<List<TrackInfo>>(emptyList())
@@ -147,15 +149,25 @@ class PlayerManager(private val context: Context) {
         playbackSettings: com.devson.nvplayer.repository.PlaybackSettings? = null
     ) {
         if (exoPlayer == null) {
+            isAmbientModeEnabled = playbackSettings?.isAmbientModeEnabled ?: false
+            
             val extensionMode = when (decoderMode) {
                 DecoderMode.HW      -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF
                 DecoderMode.HW_PLUS -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON
                 DecoderMode.SW      -> androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
             }
-            val renderersFactory = HDRFallbackRenderersFactory(context)
-                .setExtensionRendererMode(extensionMode)
-                .setEnableDecoderFallback(true)
-                .forceDisableMediaCodecAsynchronousQueueing()
+
+            // Use standard factory for pure HW to ensure no interference
+            // For HW+, use our custom factory but ensure extensions are NOT preferred
+            val renderersFactory = if (decoderMode == DecoderMode.HW) {
+                androidx.media3.exoplayer.DefaultRenderersFactory(context)
+                    .setExtensionRendererMode(extensionMode)
+                    .setEnableDecoderFallback(true)
+            } else {
+                HDRFallbackRenderersFactory(context)
+                    .setExtensionRendererMode(extensionMode)
+                    .setEnableDecoderFallback(true)
+            }
 
             val loadControl = DefaultLoadControl.Builder()
                 .setBufferDurationsMs(
@@ -180,9 +192,15 @@ class PlayerManager(private val context: Context) {
                     setSeekParameters(androidx.media3.exoplayer.SeekParameters.CLOSEST_SYNC)
                     
                     if (playbackSettings != null) {
-                        val effect = VideoFiltersEffect(playbackSettings)
-                        videoFiltersEffect = effect
-                        setVideoEffects(listOf(effect))
+                        val filters = VideoFiltersEffect(playbackSettings)
+                        videoFiltersEffect = filters
+                        val effects = mutableListOf<androidx.media3.common.Effect>(filters)
+                        if (playbackSettings.isAmbientModeEnabled) {
+                            val ambient = AmbientModeEffect()
+                            ambientModeEffect = ambient
+                            effects.add(ambient)
+                        }
+                        setVideoEffects(effects)
                     }
 
                     addListener(object : Player.Listener {
@@ -202,6 +220,13 @@ class PlayerManager(private val context: Context) {
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             if (videoSize.width > 0 && videoSize.height > 0) {
                                 _isPortraitVideo.value = videoSize.height > videoSize.width
+                                // Notify effect about new video dimensions
+                                ambientModeEffect?.updateDimensions(
+                                    vW = videoSize.width,
+                                    vH = videoSize.height,
+                                    sW = 1, // Will be updated by View later
+                                    sH = 1
+                                )
                             }
                         }
 
@@ -432,13 +457,43 @@ class PlayerManager(private val context: Context) {
 
     fun updateVideoFilters(settings: com.devson.nvplayer.repository.PlaybackSettings) {
         videoFiltersEffect?.updateSettings(settings)
-        // If effect was null but now we have settings that might need it, we might need to recreate player or set effects
-        // But usually we initialize it once.
-        if (videoFiltersEffect == null && exoPlayer != null) {
-            val effect = VideoFiltersEffect(settings)
-            videoFiltersEffect = effect
-            exoPlayer?.setVideoEffects(listOf(effect))
+        
+        val needsAmbient = settings.isAmbientModeEnabled
+        if (needsAmbient != isAmbientModeEnabled) {
+            isAmbientModeEnabled = needsAmbient
+            updateEffectsList(settings)
         }
+    }
+
+    private fun updateEffectsList(settings: com.devson.nvplayer.repository.PlaybackSettings) {
+        val effects = mutableListOf<androidx.media3.common.Effect>()
+        
+        val filters = videoFiltersEffect ?: VideoFiltersEffect(settings).also { videoFiltersEffect = it }
+        effects.add(filters)
+        
+        if (isAmbientModeEnabled) {
+            val ambient = ambientModeEffect ?: AmbientModeEffect().also { 
+                ambientModeEffect = it 
+                exoPlayer?.videoSize?.let { vs ->
+                    it.updateDimensions(vs.width, vs.height, 0, 0)
+                }
+            }
+            effects.add(ambient)
+        } else {
+            ambientModeEffect = null
+        }
+        
+        exoPlayer?.setVideoEffects(effects)
+    }
+
+    fun updateSurfaceDimensions(width: Int, height: Int) {
+        val videoSize = exoPlayer?.videoSize ?: return
+        ambientModeEffect?.updateDimensions(
+            vW = videoSize.width,
+            vH = videoSize.height,
+            sW = width,
+            sH = height
+        )
     }
 
     fun playPause() {

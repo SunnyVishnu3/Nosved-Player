@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.media3.ui.PlayerView
 import com.devson.nvplayer.ui.components.DeviceStatsOverlay
 import com.devson.nvplayer.ui.components.GestureOverlay
@@ -380,7 +381,14 @@ fun VideoScreen(
                 },
                 update = { playerView ->
                     playerView.player = player
-                    playerView.resizeMode = resizeMode
+                    
+                    // Ambient Mode Fix: Force RESIZE_MODE_FILL when ambient is enabled
+                    // to allow the shader to draw in the letterbox/pillarbox areas.
+                    playerView.resizeMode = if (playbackSettings.isAmbientModeEnabled) {
+                        androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                    } else {
+                        resizeMode
+                    }
                     
                     playerView.subtitleView?.apply {
                         visibility = android.view.View.GONE
@@ -388,6 +396,11 @@ fun VideoScreen(
                 },
                 modifier = Modifier
                     .fillMaxSize()
+                    .onSizeChanged { size ->
+                        if (size.width > 0 && size.height > 0) {
+                            viewModel.updateSurfaceDimensions(size.width, size.height)
+                        }
+                    }
                     .graphicsLayer {
                         scaleX = zoomScale
                         scaleY = zoomScale
@@ -642,7 +655,13 @@ fun VideoScreen(
                     }
                     viewModel.showControlsAndDelayHide()
                 },
-                onScrubbingModeChange = { viewModel.setScrubbingMode(it) }
+                onScrubbingModeChange = { viewModel.setScrubbingMode(it) },
+                isAmbientModeEnabled = playbackSettings.isAmbientModeEnabled,
+                onToggleAmbientMode = { 
+                    settingsViewModel.updateAmbientModeEnabled(!playbackSettings.isAmbientModeEnabled)
+                    viewModel.showControlsAndDelayHide()
+                },
+                enableBouncyAnimations = playbackSettings.enableBouncyAnimations
             )
         } else {
             //  Default controls 
@@ -730,7 +749,12 @@ fun VideoScreen(
                     viewModel.showControlsAndDelayHide()
                 },
                 onScrubbingModeChange = { viewModel.setScrubbingMode(it) },
-                onSpeedMenuClick = { showSpeedSheet = true }
+                onSpeedMenuClick = { showSpeedSheet = true },
+                isAmbientModeEnabled = playbackSettings.isAmbientModeEnabled,
+                onToggleAmbientMode = { 
+                    settingsViewModel.updateAmbientModeEnabled(!playbackSettings.isAmbientModeEnabled)
+                    viewModel.showControlsAndDelayHide()
+                }
             )
         }
     }
@@ -806,7 +830,9 @@ fun VideoScreen(
         onShowSeekButtonsChange = { viewModel.setShowSeekButtons(it) },
         onFastplaySpeedChange = { viewModel.setFastplaySpeed(it) },
         showStats = showStats,
-        onShowStatsChange = { viewModel.setShowStats(it) }
+        onShowStatsChange = { viewModel.setShowStats(it) },
+        enableBouncyAnimations = playbackSettings.enableBouncyAnimations,
+        onEnableBouncyAnimationsChange = { settingsViewModel.updateEnableBouncyAnimations(it) }
     )
 
     if (showInfoSheet) {

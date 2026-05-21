@@ -99,7 +99,9 @@ data class PlaybackSettings(
     val threeFingerAction: MultiFingerAction = MultiFingerAction.FAST_PLAY,
     val longPressEnabled: Boolean = true,
     val longPressSpeed: Float = 2.0f,
-    val doubleTapAction: DoubleTapAction = DoubleTapAction.BOTH
+    val doubleTapAction: DoubleTapAction = DoubleTapAction.BOTH,
+    val isAmbientModeEnabled: Boolean = false,
+    val enableBouncyAnimations: Boolean = true
 )
 
 class PlaybackSettingsRepository(private val context: Context) {
@@ -137,6 +139,8 @@ class PlaybackSettingsRepository(private val context: Context) {
         val SUBTITLE_FONT = stringPreferencesKey("subtitle_font")
         val IS_SUBTITLE_BOLD = booleanPreferencesKey("is_subtitle_bold")
         val FORCE_ASS_SUBTITLE_OVERRIDE = booleanPreferencesKey("force_ass_subtitle_override")
+        val AMBIENT_MODE_ENABLED = booleanPreferencesKey("ambient_mode_enabled")
+        val ENABLE_BOUNCY_ANIMATIONS = booleanPreferencesKey("enable_bouncy_animations")
 
         // Thumbnail Keys
         val THUMBNAIL_GENERATION_STRATEGY = stringPreferencesKey("thumbnail_generation_strategy")
@@ -250,7 +254,9 @@ class PlaybackSettingsRepository(private val context: Context) {
                 threeFingerAction = try { MultiFingerAction.valueOf(preferences[PreferencesKeys.THREE_FINGER_ACTION] ?: MultiFingerAction.FAST_PLAY.name) } catch (e: Exception) { MultiFingerAction.FAST_PLAY },
                 longPressEnabled = preferences[PreferencesKeys.LONG_PRESS_ENABLED] ?: true,
                 longPressSpeed = preferences[PreferencesKeys.LONG_PRESS_SPEED] ?: 2.0f,
-                doubleTapAction = try { DoubleTapAction.valueOf(preferences[PreferencesKeys.DOUBLE_TAP_ACTION] ?: DoubleTapAction.BOTH.name) } catch (e: Exception) { DoubleTapAction.BOTH }
+                doubleTapAction = try { DoubleTapAction.valueOf(preferences[PreferencesKeys.DOUBLE_TAP_ACTION] ?: DoubleTapAction.BOTH.name) } catch (e: Exception) { DoubleTapAction.BOTH },
+                isAmbientModeEnabled = preferences[PreferencesKeys.AMBIENT_MODE_ENABLED] ?: false,
+                enableBouncyAnimations = preferences[PreferencesKeys.ENABLE_BOUNCY_ANIMATIONS] ?: true
             )
         }
 
@@ -528,4 +534,6 @@ class PlaybackSettingsRepository(private val context: Context) {
     suspend fun updateLongPressEnabled(enabled: Boolean) { context.dataStore.edit { it[PreferencesKeys.LONG_PRESS_ENABLED] = enabled } }
     suspend fun updateLongPressSpeed(speed: Float) { context.dataStore.edit { it[PreferencesKeys.LONG_PRESS_SPEED] = speed } }
     suspend fun updateDoubleTapAction(action: DoubleTapAction) { context.dataStore.edit { it[PreferencesKeys.DOUBLE_TAP_ACTION] = action.name } }
+    suspend fun updateAmbientModeEnabled(enabled: Boolean) { context.dataStore.edit { it[PreferencesKeys.AMBIENT_MODE_ENABLED] = enabled } }
+    suspend fun updateEnableBouncyAnimations(enabled: Boolean) { context.dataStore.edit { it[PreferencesKeys.ENABLE_BOUNCY_ANIMATIONS] = enabled } }
 }

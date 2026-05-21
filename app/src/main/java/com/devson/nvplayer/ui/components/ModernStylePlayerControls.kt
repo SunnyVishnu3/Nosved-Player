@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.BlurOff
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -110,7 +112,10 @@ fun ModernStylePlayerControls(
     onSelectDecoder: ((DecoderMode) -> Unit)? = null,
     onOpenVideoFilters: (() -> Unit)? = null,
     onScrubbingModeChange: (Boolean) -> Unit = {},
-    onSpeedMenuClick: (() -> Unit)? = null
+    onSpeedMenuClick: (() -> Unit)? = null,
+    isAmbientModeEnabled: Boolean = false,
+    onToggleAmbientMode: () -> Unit = {},
+    enableBouncyAnimations: Boolean = true
 ) {
     var showPlaylistPanel by remember { mutableStateOf(false) }
     var showDecoderDialog by remember { mutableStateOf(false) }
@@ -219,7 +224,9 @@ fun ModernStylePlayerControls(
                     onToggleDecoder = { showDecoderDialog = true },
                     onOpenVideoFilters = onOpenVideoFilters,
                     onScrubbingModeChange = onScrubbingModeChange,
-                    onSpeedMenuClick = onSpeedMenuClick
+                    onSpeedMenuClick = onSpeedMenuClick,
+                    isAmbientModeEnabled = isAmbientModeEnabled,
+                    onToggleAmbientMode = onToggleAmbientMode
                 )
             }
         }
@@ -308,7 +315,10 @@ private fun YtControlsLayout(
     onToggleDecoder: (() -> Unit)? = null,
     onOpenVideoFilters: (() -> Unit)? = null,
     onScrubbingModeChange: (Boolean) -> Unit,
-    onSpeedMenuClick: (() -> Unit)? = null
+    onSpeedMenuClick: (() -> Unit)? = null,
+    isAmbientModeEnabled: Boolean = false,
+    onToggleAmbientMode: () -> Unit = {},
+    enableBouncyAnimations: Boolean = true
 ) {
     Box(
         modifier = Modifier
@@ -381,6 +391,13 @@ private fun YtControlsLayout(
             }
             IconButton(onClick = onAudioTrackClick) {
                 Icon(Icons.Filled.Audiotrack, contentDescription = stringResource(R.string.cd_audio_track), tint = Color.White)
+            }
+            IconButton(onClick = onToggleAmbientMode) {
+                Icon(
+                    imageVector = if (isAmbientModeEnabled) Icons.Filled.BlurOn else Icons.Filled.BlurOff,
+                    contentDescription = "Toggle Ambient Mode",
+                    tint = if (isAmbientModeEnabled) MaterialTheme.colorScheme.primary else Color.White
+                )
             }
             if (onOpenVideoFilters != null) {
                 IconButton(onClick = onOpenVideoFilters) {
@@ -542,9 +559,12 @@ private fun YtControlsLayout(
                 position = displayedPosition,
                 duration = duration,
                 isSeeking = isSeeking,
+                isPlaying = isPlaying,
+                seekBarStyle = seekBarStyle,
                 onSeekStart = onSeekStart,
                 onSeekChange = onSeekChange,
-                onSeekEnd = onSeekEnd
+                onSeekEnd = onSeekEnd,
+                enableBouncyAnimations = enableBouncyAnimations
             )
 
             Row(
@@ -586,92 +606,158 @@ private fun YtControlsLayout(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun YtSeekBar(
     position: Long,
     duration: Long,
     isSeeking: Boolean,
+    isPlaying: Boolean,
+    seekBarStyle: SeekBarStyle,
     onSeekStart: (Long) -> Unit,
     onSeekChange: (Long) -> Unit,
-    onSeekEnd: () -> Unit
+    onSeekEnd: () -> Unit,
+    enableBouncyAnimations: Boolean = true
 ) {
-    val safeDuration = duration.coerceAtLeast(1L).toFloat()
+    val pos = position.toFloat()
+    val dur = duration.toFloat()
 
-    // FIX: Decouple local slider state to stop the visual slider jumping backwards while dragging
-    var sliderPosition by remember { mutableFloatStateOf(position.toFloat()) }
-    var isDragging by remember { mutableStateOf(false) }
-    var draggingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(position) {
-        if (!isDragging) {
-            sliderPosition = position.toFloat()
-        }
-    }
-
-    // Safely enforce bounds
-    val safeSliderPos = sliderPosition.coerceIn(0f, safeDuration)
-
-    Slider(
-        value = safeSliderPos,
-        onValueChange = { newVal ->
-            draggingJob?.cancel()
-            isDragging = true
-            sliderPosition = newVal
-            val newPos = newVal.toLong()
-            if (!isSeeking) onSeekStart(newPos)
-            onSeekChange(newPos)
-        },
-        onValueChangeFinished = {
-            onSeekEnd()
-            // Provide ExoPlayer an 800ms debounce buffer to actually update the position
-            draggingJob = scope.launch {
-                delay(800)
-                isDragging = false
-            }
-        },
-        valueRange = 0f..safeDuration,
-        modifier = Modifier.fillMaxWidth(),
-        colors = SliderDefaults.colors(
-            thumbColor = Color(0xFFFF0000),
-            activeTrackColor = Color(0xFFFF0000),
-            inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-        ),
-        thumb = {
-            Box(
-                modifier = Modifier
-                    .size(if (isDragging || isSeeking) 18.dp else 14.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFFFF0000))
+    when (seekBarStyle) {
+        SeekBarStyle.WAVY -> {
+            SquigglySeekbar(
+                position = pos,
+                duration = dur,
+                isPaused = !isPlaying,
+                isScrubbing = isSeeking,
+                useWavySeekbar = true,
+                enableBouncy = enableBouncyAnimations,
+                onSeek = { onSeekChange(it.toLong()) },
+                onSeekFinished = onSeekEnd,
+                modifier = Modifier.fillMaxWidth()
             )
-        },
-        track = { sliderState ->
-            val rawFraction = ((sliderState.value - 0f) / safeDuration)
-            val safeFraction = if (rawFraction.isNaN()) 0f else rawFraction.coerceIn(0f, 1f)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.3f))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(safeFraction.coerceAtLeast(0.001f))
-                            .height(4.dp)
-                            .background(Color(0xFFFF0000))
-                    )
+        }
+        SeekBarStyle.THICK -> {
+            ThickStandardSeekbar(
+                position = pos,
+                duration = dur,
+                isThick = true,
+                enableBouncy = enableBouncyAnimations,
+                onSeek = { onSeekChange(it.toLong()) },
+                onSeekFinished = onSeekEnd,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        SeekBarStyle.CIRCULAR -> {
+            SquigglySeekbar(
+                position = pos,
+                duration = dur,
+                isPaused = !isPlaying,
+                isScrubbing = isSeeking,
+                useWavySeekbar = true,
+                isCircularThumb = true,
+                enableBouncy = enableBouncyAnimations,
+                onSeek = { onSeekChange(it.toLong()) },
+                onSeekFinished = onSeekEnd,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        SeekBarStyle.SIMPLE -> {
+            SquigglySeekbar(
+                position = pos,
+                duration = dur,
+                isPaused = !isPlaying,
+                isScrubbing = isSeeking,
+                useWavySeekbar = false,
+                enableBouncy = enableBouncyAnimations,
+                onSeek = { onSeekChange(it.toLong()) },
+                onSeekFinished = onSeekEnd,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        SeekBarStyle.LINE -> {
+            LineSlider(
+                value = pos,
+                onValueChange = { onSeekChange(it.toLong()) },
+                valueRange = 0f..dur.coerceAtLeast(0.1f),
+                onValueChangeFinished = onSeekEnd,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        else -> {
+            // Default Youtube style
+            val safeDuration = duration.coerceAtLeast(1L).toFloat()
+            var sliderPosition by remember { mutableFloatStateOf(position.toFloat()) }
+            var isDragging by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            var draggingJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+
+            LaunchedEffect(position) {
+                if (!isDragging) {
+                    sliderPosition = position.toFloat()
                 }
             }
+
+            val safeSliderPos = sliderPosition.coerceIn(0f, safeDuration)
+
+            Slider(
+                value = safeSliderPos,
+                onValueChange = { newVal ->
+                    draggingJob?.cancel()
+                    isDragging = true
+                    sliderPosition = newVal
+                    val newPos = newVal.toLong()
+                    if (!isSeeking) onSeekStart(newPos)
+                    onSeekChange(newPos)
+                },
+                onValueChangeFinished = {
+                    onSeekEnd()
+                    draggingJob = scope.launch {
+                        delay(800)
+                        isDragging = false
+                    }
+                },
+                valueRange = 0f..safeDuration,
+                modifier = Modifier.fillMaxWidth(),
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFFFF0000),
+                    activeTrackColor = Color(0xFFFF0000),
+                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                ),
+                thumb = {
+                    Box(
+                        modifier = Modifier
+                            .size(if (isDragging || isSeeking) 18.dp else 14.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFF0000))
+                    )
+                },
+                track = { sliderState ->
+                    val rawFraction = ((sliderState.value - 0f) / safeDuration)
+                    val safeFraction = if (rawFraction.isNaN()) 0f else rawFraction.coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(Color.White.copy(alpha = 0.3f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(safeFraction.coerceAtLeast(0.001f))
+                                    .height(4.dp)
+                                    .background(Color(0xFFFF0000))
+                            )
+                        }
+                    }
+                }
+            )
         }
-    )
+    }
 }
 
 @Composable

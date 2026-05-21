@@ -181,7 +181,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 threeFingerAction = com.devson.nvplayer.repository.MultiFingerAction.FAST_PLAY,
                 longPressEnabled = true,
                 longPressSpeed = 2.0f,
-                doubleTapAction = com.devson.nvplayer.repository.DoubleTapAction.BOTH
+                doubleTapAction = com.devson.nvplayer.repository.DoubleTapAction.BOTH,
+                isAmbientModeEnabled = false,
+                enableBouncyAnimations = true
             )
         )
 
@@ -390,5 +392,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun updateDoubleTapAction(action: com.devson.nvplayer.repository.DoubleTapAction) {
         viewModelScope.launch { settingsRepo.updateDoubleTapAction(action) }
+    }
+
+    fun updateAmbientModeEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepo.updateAmbientModeEnabled(enabled) }
+    }
+
+    fun updateEnableBouncyAnimations(enabled: Boolean) {
+        viewModelScope.launch { settingsRepo.updateEnableBouncyAnimations(enabled) }
     }
 }

@@ -59,7 +59,9 @@ fun PlaybackSettingsSheet(
     onShowSeekButtonsChange: (Boolean) -> Unit = {},
     onFastplaySpeedChange: (Float) -> Unit = {},
     showStats: Boolean = false,
-    onShowStatsChange: (Boolean) -> Unit = {}
+    onShowStatsChange: (Boolean) -> Unit = {},
+    enableBouncyAnimations: Boolean = true,
+    onEnableBouncyAnimationsChange: (Boolean) -> Unit = {}
 ) {
     // In-sheet page state: false = main, true = seek settings
     var showSeekPage by remember(showSettingsSheet) { mutableStateOf(false) }
@@ -86,7 +88,9 @@ fun PlaybackSettingsSheet(
                     showStats = showStats,
                     onShowStatsChange = onShowStatsChange,
                     onOpenSeekPage = { showSeekPage = true },
-                    onBackToMain = { showSeekPage = false }
+                    onBackToMain = { showSeekPage = false },
+                    enableBouncyAnimations = enableBouncyAnimations,
+                    onEnableBouncyAnimationsChange = onEnableBouncyAnimationsChange
                 )
             }
         } else {
@@ -118,7 +122,9 @@ fun PlaybackSettingsSheet(
                     showStats = showStats,
                     onShowStatsChange = onShowStatsChange,
                     onOpenSeekPage = { showSeekPage = true },
-                    onBackToMain = { showSeekPage = false }
+                    onBackToMain = { showSeekPage = false },
+                    enableBouncyAnimations = enableBouncyAnimations,
+                    onEnableBouncyAnimationsChange = onEnableBouncyAnimationsChange
                 )
             }
         }
@@ -147,7 +153,9 @@ private fun SheetPageContent(
     showStats: Boolean,
     onShowStatsChange: (Boolean) -> Unit,
     onOpenSeekPage: () -> Unit,
-    onBackToMain: () -> Unit
+    onBackToMain: () -> Unit,
+    enableBouncyAnimations: Boolean,
+    onEnableBouncyAnimationsChange: (Boolean) -> Unit
 ) {
     AnimatedContent(
         targetState = showSeekPage,
@@ -186,7 +194,9 @@ private fun SheetPageContent(
                 onAutoPlayChange = onAutoPlayChange,
                 onModernStyleChange = onModernStyleChange,
                 onShowStatsChange = onShowStatsChange,
-                onOpenSeekPage = onOpenSeekPage
+                onOpenSeekPage = onOpenSeekPage,
+                enableBouncyAnimations = enableBouncyAnimations,
+                onEnableBouncyAnimationsChange = onEnableBouncyAnimationsChange
             )
         }
     }
@@ -204,7 +214,9 @@ private fun MainSettingsPage(
     onAutoPlayChange: (Boolean) -> Unit,
     onModernStyleChange: (Boolean) -> Unit,
     onShowStatsChange: (Boolean) -> Unit,
-    onOpenSeekPage: () -> Unit
+    onOpenSeekPage: () -> Unit,
+    enableBouncyAnimations: Boolean,
+    onEnableBouncyAnimationsChange: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -309,23 +321,44 @@ private fun MainSettingsPage(
 
         // Player Style
         SettingsSection(title = "Player Style") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Use Modern style controls",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Switch(
-                    checked = useModernStyle,
-                    onCheckedChange = { onModernStyleChange(it) }
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Use Modern style controls",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Switch(
+                        checked = useModernStyle,
+                        onCheckedChange = { onModernStyleChange(it) }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Enable bouncy animations",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Switch(
+                        checked = enableBouncyAnimations,
+                        onCheckedChange = { onEnableBouncyAnimationsChange(it) }
+                    )
+                }
             }
         }
 
@@ -475,22 +508,70 @@ private fun SeekSettingsPage(
 
             //  Seek Bar Style 
             SettingsSection(title = "Seek Bar Style") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ChipButton(
-                        label = "Default",
-                        selected = seekBarStyle == SeekBarStyle.DEFAULT,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSeekBarStyleChange(SeekBarStyle.DEFAULT) }
-                    )
-                    ChipButton(
-                        label = "Flat / Slim",
-                        selected = seekBarStyle == SeekBarStyle.FLAT,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onSeekBarStyleChange(SeekBarStyle.FLAT) }
-                    )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ChipButton(
+                            label = "Default",
+                            selected = seekBarStyle == SeekBarStyle.DEFAULT,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.DEFAULT) }
+                        )
+                        ChipButton(
+                            label = "Flat / Slim",
+                            selected = seekBarStyle == SeekBarStyle.FLAT,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.FLAT) }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ChipButton(
+                            label = "Wavy",
+                            selected = seekBarStyle == SeekBarStyle.WAVY,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.WAVY) }
+                        )
+                        ChipButton(
+                            label = "Thick",
+                            selected = seekBarStyle == SeekBarStyle.THICK,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.THICK) }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ChipButton(
+                            label = "Circular",
+                            selected = seekBarStyle == SeekBarStyle.CIRCULAR,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.CIRCULAR) }
+                        )
+                        ChipButton(
+                            label = "Simple",
+                            selected = seekBarStyle == SeekBarStyle.SIMPLE,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.SIMPLE) }
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        ChipButton(
+                            label = "Modern Line",
+                            selected = seekBarStyle == SeekBarStyle.LINE,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onSeekBarStyleChange(SeekBarStyle.LINE) }
+                        )
+                        Spacer(Modifier.weight(1f))
+                    }
                 }
             }
 

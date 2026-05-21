@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BlurOff
+import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
@@ -152,7 +154,9 @@ fun PlayerControls(
     onSelectDecoder: ((DecoderMode) -> Unit)? = null,
     onOpenVideoFilters: (() -> Unit)? = null,
     onScrubbingModeChange: (Boolean) -> Unit = {},
-    onSpeedMenuClick: (() -> Unit)? = null
+    onSpeedMenuClick: (() -> Unit)? = null,
+    isAmbientModeEnabled: Boolean = false,
+    onToggleAmbientMode: () -> Unit = {}
 ) {
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showDecoderDialog by remember { mutableStateOf(false) }
@@ -314,6 +318,14 @@ fun PlayerControls(
                         }
                     }
 
+                    IconButton(onClick = onToggleAmbientMode) {
+                        Icon(
+                            imageVector = if (isAmbientModeEnabled) Icons.Filled.BlurOn else Icons.Filled.BlurOff,
+                            contentDescription = "Toggle Ambient Mode",
+                            tint = if (isAmbientModeEnabled) MaterialTheme.colorScheme.primary else Color.White
+                        )
+                    }
+
                     if (onPipToggle != null) {
                         TooltipBox(
                             positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
@@ -410,52 +422,166 @@ fun PlayerControls(
                         val safeValueRange = 0f..safeDuration
                         val safeSliderPosition = sliderPosition.coerceIn(0f, safeDuration)
 
-                        if (seekBarStyle == SeekBarStyle.FLAT) {
-                            FlatSeekBar(
-                                value = safeSliderPosition,
-                                valueRange = safeValueRange,
-                                onValueChange = {
-                                    draggingJob?.cancel()
-                                    if (!isDragging) onScrubbingModeChange(true)
-                                    isDragging = true
-                                    sliderPosition = it
-                                    onSeekTo(it.toLong())
-                                },
-                                onValueChangeFinished = {
-                                    onSeekTo(sliderPosition.toLong())
-                                    onScrubbingModeChange(false)
-                                    draggingJob = scope.launch {
-                                        kotlinx.coroutines.delay(800)
-                                        isDragging = false
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            )
-                        } else {
-                            Slider(
-                                value = safeSliderPosition,
-                                onValueChange = {
-                                    draggingJob?.cancel()
-                                    isDragging = true
-                                    sliderPosition = it
-                                    onSeekTo(it.toLong())
-                                },
-                                onValueChangeFinished = {
-                                    onSeekTo(sliderPosition.toLong())
-                                    onScrubbingModeChange(false)
-                                    draggingJob = scope.launch {
-                                        kotlinx.coroutines.delay(800)
-                                        isDragging = false
-                                    }
-                                },
-                                valueRange = safeValueRange,
-                                modifier = Modifier.weight(1f),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.4f)
-                                )
-                            )
+                        Box(modifier = Modifier.weight(1f)) {
+                            when (seekBarStyle) {
+                                SeekBarStyle.WAVY -> {
+                                    SquigglySeekbar(
+                                        position = safeSliderPosition,
+                                        duration = safeDuration,
+                                        isPaused = !isPlaying,
+                                        isScrubbing = isDragging,
+                                        useWavySeekbar = true,
+                                        onSeek = { 
+                                            draggingJob?.cancel()
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong()) 
+                                        },
+                                        onSeekFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        }
+                                    )
+                                }
+                                SeekBarStyle.THICK -> {
+                                    ThickStandardSeekbar(
+                                        position = safeSliderPosition,
+                                        duration = safeDuration,
+                                        isThick = true,
+                                        onSeek = { 
+                                            draggingJob?.cancel()
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong()) 
+                                        },
+                                        onSeekFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        }
+                                    )
+                                }
+                                SeekBarStyle.CIRCULAR -> {
+                                    SquigglySeekbar(
+                                        position = safeSliderPosition,
+                                        duration = safeDuration,
+                                        isPaused = !isPlaying,
+                                        isScrubbing = isDragging,
+                                        useWavySeekbar = true,
+                                        isCircularThumb = true,
+                                        onSeek = { 
+                                            draggingJob?.cancel()
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong()) 
+                                        },
+                                        onSeekFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        }
+                                    )
+                                }
+                                SeekBarStyle.SIMPLE -> {
+                                    SquigglySeekbar(
+                                        position = safeSliderPosition,
+                                        duration = safeDuration,
+                                        isPaused = !isPlaying,
+                                        isScrubbing = isDragging,
+                                        useWavySeekbar = false,
+                                        onSeek = { 
+                                            draggingJob?.cancel()
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong()) 
+                                        },
+                                        onSeekFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        }
+                                    )
+                                }
+                                SeekBarStyle.LINE -> {
+                                    LineSlider(
+                                        value = safeSliderPosition,
+                                        onValueChange = { 
+                                            draggingJob?.cancel()
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong()) 
+                                        },
+                                        valueRange = safeValueRange,
+                                        onValueChangeFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        }
+                                    )
+                                }
+                                SeekBarStyle.FLAT -> {
+                                    FlatSeekBar(
+                                        value = safeSliderPosition,
+                                        valueRange = safeValueRange,
+                                        onValueChange = {
+                                            draggingJob?.cancel()
+                                            if (!isDragging) onScrubbingModeChange(true)
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong())
+                                        },
+                                        onValueChangeFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        }
+                                    )
+                                }
+                                else -> {
+                                    Slider(
+                                        value = safeSliderPosition,
+                                        onValueChange = {
+                                            draggingJob?.cancel()
+                                            isDragging = true
+                                            sliderPosition = it
+                                            onSeekTo(it.toLong())
+                                        },
+                                        onValueChangeFinished = {
+                                            onSeekTo(sliderPosition.toLong())
+                                            onScrubbingModeChange(false)
+                                            draggingJob = scope.launch {
+                                                kotlinx.coroutines.delay(800)
+                                                isDragging = false
+                                            }
+                                        },
+                                        valueRange = safeValueRange,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = MaterialTheme.colorScheme.primary,
+                                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                                            inactiveTrackColor = Color.White.copy(alpha = 0.4f)
+                                        )
+                                    )
+                                }
+                            }
                         }
 
                         Spacer(Modifier.width(8.dp))
